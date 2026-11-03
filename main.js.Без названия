@@ -1,0 +1,317 @@
+/* ============================================================
+   RACER — общий UI (jQuery): шапка, меню, модалки, анимации,
+   плавные переходы между страницами.
+   ============================================================ */
+
+var RACER = {
+    /* CSRF-токен из <meta name="csrf-token"> */
+    token: function () {
+        var m = document.querySelector('meta[name="csrf-token"]');
+        return m ? m.getAttribute('content') : '';
+    },
+
+    esc: function (s) {
+        return String(s == null ? '' : s)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+    },
+
+    unesc: function (s) {
+        return String(s == null ? '' : s)
+            .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+            .replace(/&quot;/g, '"').replace(/&#039;/g, "'");
+    },
+
+    plural: function (n, one, few, many) {
+        var n10 = n % 10, n100 = n % 100;
+        if (n10 === 1 && n100 !== 11) return one;
+        if (n10 >= 2 && n10 <= 4 && (n100 < 12 || n100 > 14)) return few;
+        return many;
+    }
+};
+
+/* Цвета вариантов техники (название → hex | [hex, hex]) */
+const colors = new Map([
+    [`Белый`, '#ffffff'], [`Красный`, '#ff0000'], [`Краный`, '#ff0000'],
+    [`Оранжевый`, '#ffa500'], [`Черный`, '#000000'], [`Зеленый`, '#008000'],
+    [`Салатовый`, '#99ff99'], [`Синий`, '#0000ff'], [`Серый`, '#808080'],
+    [`Желтый`, '#ffff00'], [`Бордовый`, '#9b2d30'], [`Голубой`, '#42aaff'],
+    [`Золото`, '#ffd700'], [`Фиолетовый`, '#8b00ff'], [`Серебро`, '#c0c0c0'],
+    [`Серый глянцевый`, '#9a9a9a'], [`Серый матовый`, '#7d7d7d'],
+    [`Коричневый`, '#964b00'], [`Бирюзовый`, '#30d5c8'],
+    [`Темно-Зеленый`, '#013220'], [`Темно-зеленый`, '#013220'], [`Темно-Синий`, '#002137'],
+    [`Черно-Зеленый`, [`#000000`, `#008000`]], [`Оранжево-Черный`, [`#ffa500`, `#000000`]],
+    [`Серо-Черный`, [`#808080`, `#000000`]], [`Черно-Красный`, [`#000000`, `#ff0000`]],
+    [`Черный-Серый`, [`#000000`, `#808080`]], [`Бело-Красный`, [`#ffffff`, `#ff0000`]],
+    [`Черный-Желтый`, [`#000000`, `#ffff00`]], [`Черный-Синий`, [`#000000`, `#0000ff`]],
+    [`Белый-Серый`, [`#ffffff`, `#808080`]], [`Оранжевый-Красный`, [`#ffa500`, `#ff0000`]],
+    [`Синий-Оранжевый`, [`#0000ff`, `#ffa500`]], [`Желтый-Синий`, [`#ffff00`, `#0000ff`]],
+    [`Синий-Белый`, [`#0000ff`, `#ffffff`]], [`Сине-Белый`, [`#0000ff`, `#ffffff`]],
+    [`Серый-Синий`, [`#808080`, `#0000ff`]], [`Серый-Красный`, [`#808080`, `#ff0000`]],
+    [`Синий-Желтый`, [`#0000ff`, `#ffff00`]]
+]);
+
+function isJson(str) {
+    try { JSON.parse(str); } catch (e) { return false; }
+    return true;
+}
+
+/* ------------------------------------------------------------
+   Карта дилеров (Яндекс.Карты, фирменный стиль):
+   ч/б подложка, свои метки, инфо-блок снизу слева по клику.
+   Контейнер: <div id="..."> внутри блока-обёртки, рядом .map-info.
+   ------------------------------------------------------------ */
+RACER.initDealersMap = function (containerId, geo, done) {
+    if (!window.ymaps) return;
+    ymaps.ready(function () {
+        var map = new ymaps.Map(containerId, {
+            center: [57.76, 83.64],
+            zoom: 3,
+            controls: ['zoomControl', 'fullscreenControl']
+        }, {
+            searchControlProvider: 'yandex#search'
+        });
+        var om = new ymaps.ObjectManager({ clusterize: false });
+        om.objects.options.set({
+            iconLayout: 'default#image',
+            iconImageHref: '/assets/img/mapMarker.png?v2',
+            iconImageSize: [30, 44],
+            iconImageOffset: [-15, -44]
+        });
+        var g = JSON.parse(JSON.stringify(geo));
+        (g.features || []).forEach(function (f) {
+            f.geometry.coordinates = f.geometry.coordinates.map(Number);
+        });
+        om.add(g);
+        map.geoObjects.add(om);
+        if ((g.features || []).length) {
+            map.setBounds(om.getBounds(), { checkZoomRange: true, zoomMargin: 30 });
+        }
+
+        var $wrap = $('#' + containerId).parent();
+        om.objects.events.add('click', function (e) {
+            var obj = om.objects.getById(e.get('objectId'));
+            RACER.showMapInfo($wrap, (obj && obj.data) || {});
+        });
+
+        if (done) done(map, om);
+    });
+};
+
+/* Показать инфо-блок точки внутри обёртки карты. */
+RACER.showMapInfo = function ($wrap, d) {
+    var $info = $wrap.find('.map-info');
+    if (!$info.length) return;
+    $info.find('.map-info-name').text(RACER.unesc(d.name || ''));
+    $info.find('.map-info-adres').text(d.adres || '');
+    $info.find('.map-info-phone').text(d.phone ? 'тел: ' + d.phone : '');
+    var $site = $info.find('.map-info-site');
+    if (d.site) {
+        $site.attr('href', d.site).css('display', 'flex');
+    } else {
+        $site.attr('href', '#').css('display', 'none');
+    }
+    $info.addClass('is-open');
+};
+
+$(document).on('click', '.map-info-close', function () {
+    $(this).closest('.map-info').removeClass('is-open');
+});
+
+/* ---------- серверная ошибка ---------- */
+function showServerError() {
+    $('#server-error-modal').addClass('is-open');
+}
+$.ajaxSetup({ error: showServerError });
+
+/* ---------- reveal-анимации при скролле ---------- */
+RACER._io = null;
+RACER.reveal = function (root) {
+    var els = $(root || document).find('[data-reveal]:not(.is-in)').addBack('[data-reveal]:not(.is-in)').get();
+    if (!('IntersectionObserver' in window)) {
+        els.forEach(function (el) { el.classList.add('is-in'); });
+        return;
+    }
+    if (!RACER._io) {
+        RACER._io = new IntersectionObserver(function (entries) {
+            entries.forEach(function (en) {
+                if (en.isIntersecting) {
+                    en.target.classList.add('is-in');
+                    RACER._io.unobserve(en.target);
+                }
+            });
+        }, { threshold: .12, rootMargin: '0px 0px -6% 0px' });
+    }
+    els.forEach(function (el) { RACER._io.observe(el); });
+};
+
+/* авто-задержки: контейнер [data-stagger] раздаёт --d детям с [data-reveal] */
+RACER.stagger = function (root) {
+    $(root || document).find('[data-stagger]').addBack('[data-stagger]').each(function () {
+        var step = parseFloat(this.getAttribute('data-stagger')) || .08;
+        $(this).find('[data-reveal]').each(function (i) {
+            if (!this.style.getPropertyValue('--d')) {
+                this.style.setProperty('--d', (i * step).toFixed(2) + 's');
+            }
+        });
+    });
+};
+
+/* вызвать после динамической вставки контента */
+RACER.animate = function (root) {
+    RACER.stagger(root);
+    RACER.reveal(root);
+};
+
+/* ---------- плавный уход со страницы ---------- */
+$(document).on('click', 'a[href]', function (e) {
+    if (e.isDefaultPrevented() || e.which !== 1) return;
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    var href = this.getAttribute('href');
+    if (!href || href.charAt(0) === '#' || this.target === '_blank' || this.hasAttribute('download')) return;
+    if (/^(mailto:|tel:|javascript:)/i.test(href)) return;
+    var url;
+    try { url = new URL(this.href, location.href); } catch (err) { return; }
+    if (url.origin !== location.origin) return;
+    e.preventDefault();
+    var to = this.href;
+    document.body.classList.add('page-leave');
+    setTimeout(function () { location.href = to; }, 170);
+});
+
+/* возврат по истории из bfcache — убрать затемнение */
+window.addEventListener('pageshow', function (e) {
+    if (e.persisted) document.body.classList.remove('page-leave');
+});
+
+/* ---------- инициализация UI ---------- */
+$(function () {
+    RACER.animate(document);
+
+    /* фейд подгружаемых картинок */
+    document.addEventListener('load', function (e) {
+        if (e.target.tagName === 'IMG' && e.target.classList.contains('img-fade')) {
+            e.target.classList.add('is-loaded');
+        }
+    }, true);
+    $('img.img-fade').each(function () {
+        if (this.complete && this.naturalWidth) this.classList.add('is-loaded');
+    });
+
+    /* тень шапки при скролле */
+    var $top = $('#site-top');
+    if ($top.length) {
+        var onScroll = function () {
+            $top.toggleClass('shadow-[0_12px_40px_rgba(0,0,0,.35)]', window.scrollY > 8);
+        };
+        $(window).on('scroll', onScroll);
+        onScroll();
+    }
+
+    /* мега-меню каталога */
+    function closeMega() {
+        $('#megamenu').removeClass('is-open');
+        $('#nav-catalog-toggle').removeClass('is-open');
+    }
+    $(document).on('click', '#nav-catalog-toggle', function (e) {
+        e.stopPropagation();
+        $('#megamenu').toggleClass('is-open');
+        $(this).toggleClass('is-open');
+    });
+    $(document).on('click', function (e) {
+        if (!$(e.target).closest('#megamenu, #nav-catalog-toggle').length) closeMega();
+    });
+
+    /* мобильное меню */
+    $(document).on('click', '#mobmenu-open', function () {
+        $('#mobmenu').addClass('is-open');
+        $('body').addClass('overflow-hidden');
+    });
+    function closeMob() {
+        $('#mobmenu').removeClass('is-open');
+        $('body').removeClass('overflow-hidden');
+    }
+    $(document).on('click', '#mobmenu-close', closeMob);
+    /* закрыть меню при переходе по ссылке из него */
+    $(document).on('click', '#mobmenu a', function () { closeMob(); });
+
+    /* Esc закрывает всё */
+    $(document).on('keydown', function (e) {
+        if (e.key === 'Escape') {
+            closeMega();
+            closeMob();
+            $('.modal.is-open').removeClass('is-open');
+            $('.lightbox.is-open').removeClass('is-open');
+            $('body').removeClass('overflow-hidden');
+        }
+    });
+
+    /* модалки: открытие/закрытие */
+    $(document).on('click', '[data-modal-open]', function () {
+        $('#' + this.getAttribute('data-modal-open')).addClass('is-open');
+    });
+    $(document).on('click', '.modal-bg, [data-modal-close]', function () {
+        $(this).closest('.modal').removeClass('is-open');
+    });
+
+    /* форма «Напишите нам» / «Задайте вопрос» */
+    $(document).on('submit', '.js-question-form', function () {
+        var form = this;
+        var $form = $(form);
+        $form.addClass('opacity-60 pointer-events-none');
+        $.ajax({
+            url: '/api/question.php',
+            type: 'POST',
+            dataType: 'json',
+            data: {
+                token: RACER.token(),
+                name: $form.find('[name="q-name"]').val(),
+                mail: $form.find('[name="q-mail"]').val(),
+                text: $form.find('[name="q-text"]').val()
+            },
+            success: function (r) {
+                $form.removeClass('opacity-60 pointer-events-none');
+                if (r && r.ok) {
+                    var $scope = $form.closest('.js-question-scope');
+                    var $ty = $scope.find('.modal-ty, .js-question-ty');
+                    if ($ty.length) {
+                        $ty.addClass('is-visible');
+                    } else {
+                        $form.find('button[type="submit"]')
+                            .addClass('!bg-[#3A6B35]')
+                            .text('Отправлено ✓');
+                    }
+                    form.reset();
+                } else {
+                    showServerError();
+                }
+            },
+            error: function () {
+                $form.removeClass('opacity-60 pointer-events-none');
+                showServerError();
+            }
+        });
+        return false;
+    });
+    $(document).on('click', '.js-question-ty-close', function () {
+        $(this).closest('.modal-ty').removeClass('is-visible');
+        $(this).closest('.modal').removeClass('is-open');
+    });
+
+    /* наверх */
+    $(document).on('click', '.js-totop', function () {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+
+    /* плашка cookies (согласие храним в localStorage) */
+    var COOKIE_KEY = 'racer-cookies-ok';
+    var cookiesAccepted = false;
+    try { cookiesAccepted = !!localStorage.getItem(COOKIE_KEY); } catch (e) {}
+    if (!cookiesAccepted && $('#cookiebar').length) {
+        setTimeout(function () { $('#cookiebar').addClass('is-open'); }, 900);
+    }
+    $(document).on('click', '#cookiebar-accept', function () {
+        try { localStorage.setItem(COOKIE_KEY, '1'); } catch (e) {}
+        $('#cookiebar').removeClass('is-open');
+    });
+});

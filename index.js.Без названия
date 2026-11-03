@@ -1,0 +1,43 @@
+/* Главная: слайдер главной новости + карта дилеров в тизере «Где купить». */
+$(function () {
+
+    /* ---------- слайдер новостей ---------- */
+    var $slider = $('#news-slider');
+    var $slides = $slider.find('.news-slide');
+    if ($slides.length > 1) {
+        var cur = 0;
+        var timer = null;
+
+        function go(i) {
+            cur = (i + $slides.length) % $slides.length;
+            $slides.removeClass('is-active').eq(cur).addClass('is-active');
+            $('#news-dots .news-dot').each(function (k) {
+                $(this)
+                    .toggleClass('w-7 bg-brand', k === cur)
+                    .toggleClass('w-4 bg-white/40 hover:bg-white/70', k !== cur);
+            });
+        }
+        function play() {
+            stop();
+            timer = setInterval(function () { go(cur + 1); }, 5000);
+        }
+        function stop() {
+            if (timer) clearInterval(timer);
+            timer = null;
+        }
+
+        $slider.on('mouseenter', stop).on('mouseleave', play);
+        $(document).on('click', '#news-dots .news-dot', function () {
+            go($(this).index());
+            play();
+        });
+        play();
+    }
+
+    /* ---------- карта в тизере «Где купить» ---------- */
+    if ($('#home-map').length) {
+        $.getJSON('/api/dealers-map.php').done(function (geo) {
+            RACER.initDealersMap('home-map', geo);
+        });
+    }
+});

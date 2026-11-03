@@ -1,0 +1,168 @@
+/* ============================================================
+   RACER — кастомный слой поверх Tailwind:
+   анимации, состояния компонентов, то, что неудобно utility-классами.
+   ============================================================ */
+
+:root {
+    --ease: cubic-bezier(.2, .7, .2, 1);
+    --ease-menu: cubic-bezier(.2, .8, .2, 1);
+}
+
+html { scroll-behavior: smooth; }
+::selection { background: #E31E24; color: #fff; }
+
+/* Боковые отступы страницы (как в макете: clamp(20px, 4.5vw, 64px)) */
+.wrap { padding-left: clamp(20px, 4.5vw, 64px); padding-right: clamp(20px, 4.5vw, 64px); }
+
+/* Логотип-картинка поверх тёмного фона */
+.logo-img { filter: brightness(0) invert(1); }
+
+/* Обводочный «призрачный» текст (RACER на фоне) */
+.text-ghost { color: transparent; -webkit-text-stroke: 1px rgba(255,255,255,.35); }
+.text-ghost--dark { color: transparent; -webkit-text-stroke: 1px rgba(16,17,20,.14); }
+
+/* ---------- скошенные кнопки шапки ---------- */
+.skew-btn { display: block; transform: skewX(-12deg); cursor: pointer; transition: background .2s var(--ease), color .2s var(--ease), border-color .2s var(--ease); }
+.skew-btn > span { display: flex; align-items: center; gap: 8px; transform: skewX(12deg); font-weight: 700; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; }
+
+/* ---------- выпадающий каталог ---------- */
+.megamenu {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-10px);
+    transition: opacity .25s var(--ease), transform .25s var(--ease);
+}
+.megamenu.is-open { opacity: 1; pointer-events: auto; transform: translateY(0); }
+#nav-catalog-toggle .chev { transition: transform .25s var(--ease); }
+#nav-catalog-toggle.is-open .chev { transform: rotate(180deg); }
+
+/* ---------- мобильное меню ---------- */
+.mobmenu {
+    transform: translateX(105%);
+    transition: transform .38s var(--ease-menu);
+}
+.mobmenu.is-open { transform: translateX(0); }
+.mobmenu .anim-in {
+    opacity: 0;
+    transform: translateX(24px);
+    transition: opacity .4s var(--ease), transform .4s var(--ease);
+    transition-delay: var(--d, 0s);
+}
+.mobmenu.is-open .anim-in { opacity: 1; transform: translateX(0); }
+
+/* ---------- модальные окна ---------- */
+.modal { opacity: 0; pointer-events: none; transition: opacity .28s var(--ease); }
+.modal.is-open { opacity: 1; pointer-events: auto; }
+.modal .modal-panel { transform: translateY(16px) scale(.97); transition: transform .32s var(--ease); }
+.modal.is-open .modal-panel { transform: translateY(0) scale(1); }
+.modal-ty { opacity: 0; pointer-events: none; transition: opacity .3s var(--ease); }
+.modal-ty.is-visible { opacity: 1; pointer-events: auto; }
+
+/* ---------- лайтбокс ---------- */
+.lightbox { opacity: 0; pointer-events: none; transition: opacity .3s var(--ease); }
+.lightbox.is-open { opacity: 1; pointer-events: auto; }
+.lightbox img { transform: scale(.96); transition: transform .3s var(--ease), opacity .2s var(--ease); }
+.lightbox.is-open img { transform: scale(1); }
+.lightbox img.is-swapping { opacity: 0; }
+
+/* ---------- reveal-анимации при скролле ---------- */
+[data-reveal] {
+    opacity: 0;
+    transform: translateY(26px);
+    transition: opacity .65s var(--ease), transform .65s var(--ease);
+    transition-delay: var(--d, 0s);
+    will-change: opacity, transform;
+}
+[data-reveal="left"] { transform: translateX(-30px); }
+[data-reveal="right"] { transform: translateX(30px); }
+[data-reveal="zoom"] { transform: scale(.96); }
+[data-reveal].is-in { opacity: 1; transform: none; }
+
+/* появление страницы / уход со страницы */
+@keyframes pageIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+main { animation: pageIn .5s var(--ease) both; }
+body.page-leave { opacity: 0; transition: opacity .18s ease; }
+
+/* лёгкий дрейф фоновой картинки тёмных заголовков */
+@keyframes heroDrift { from { transform: scale(1.04); } to { transform: scale(1); } }
+.hero-drift { animation: heroDrift 14s var(--ease) both; }
+
+/* плавное появление карточек после фильтрации */
+@keyframes cardIn { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+.re-anim > * { animation: cardIn .45s var(--ease) backwards; }
+
+/* подгрузка изображений с фейдом */
+.img-fade { opacity: 0; transition: opacity .5s var(--ease); }
+.img-fade.is-loaded { opacity: 1; }
+
+/* ---------- крутилка загрузки ---------- */
+.spinner {
+    width: 44px; height: 44px;
+    border: 4px solid rgba(16,17,20,.15);
+    border-top-color: #E31E24;
+    border-radius: 50%;
+    animation: spin .9s linear infinite;
+    margin: 40px auto;
+}
+.spinner--light { border-color: rgba(255,255,255,.2); border-top-color: #fff; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---------- скелетоны ---------- */
+.skel {
+    background: linear-gradient(100deg, #F4F3F1 40%, #fff 50%, #F4F3F1 60%);
+    background-size: 200% 100%;
+    animation: skel 1.4s ease infinite;
+}
+@keyframes skel { to { background-position: -200% 0; } }
+
+/* ---------- ч/б подложка Яндекс.Карт ---------- */
+.map-grayscale [class*="ground-pane"] { filter: grayscale(1); }
+
+/* ---------- инфо-блок точки на карте (появление снизу слева) ---------- */
+.map-info {
+    opacity: 0;
+    transform: translateY(14px);
+    pointer-events: none;
+    transition: opacity .3s var(--ease), transform .3s var(--ease);
+}
+.map-info.is-open { opacity: 1; transform: none; pointer-events: auto; }
+
+/* ---------- плашка cookies ---------- */
+.cookiebar {
+    opacity: 0;
+    transform: translateY(24px);
+    pointer-events: none;
+    transition: opacity .45s var(--ease), transform .45s var(--ease);
+}
+.cookiebar.is-open { opacity: 1; transform: none; pointer-events: auto; }
+
+/* ---------- слайдер главной новости ---------- */
+.news-slide {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .8s var(--ease);
+}
+.news-slide.is-active { opacity: 1; pointer-events: auto; }
+.news-dot { transition: background .25s var(--ease), width .25s var(--ease); }
+
+/* ---------- контент из CKEditor (страница контактов, новости) ---------- */
+.ck-host { font-size: 14px; line-height: 1.7; overflow-x: auto; }
+.ck-host table { border-collapse: collapse; width: 100%; max-width: 720px; }
+.ck-host td { padding: 6px 12px 6px 0; vertical-align: top; }
+.ck-host h1 { font-size: clamp(20px, 2vw, 26px); text-transform: uppercase; font-weight: 800; margin: 26px 0 10px; }
+.ck-host h2 { font-size: clamp(18px, 1.8vw, 22px); font-weight: 800; margin: 22px 0 8px; }
+.ck-host a { color: #E31E24; }
+.ck-host p { margin: 6px 0; }
+.ck-host img { max-width: 100%; height: auto; }
+.ck-host figure { margin: 14px 0; }
+
+/* ---------- reduced motion ---------- */
+@media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after {
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: .01ms !important;
+    }
+    [data-reveal] { opacity: 1; transform: none; }
+}
